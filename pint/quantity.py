@@ -151,6 +151,10 @@ class _Quantity(PrettyIPython, SharedRegistryObject):
         # Only instances where the magnitude is iterable should have __iter__()
         if hasattr(inst._magnitude,"__iter__"):
             inst.__iter__ = cls._iter
+        # Likewise, only instances where the magnitude supports sequencing
+        # should have __getitem__()
+        if hasattr(inst._magnitude,"__getitem__"):
+            inst.__getitem__ = cls._getitem
         return inst
 
     def _iter(self):
@@ -160,6 +164,15 @@ class _Quantity(PrettyIPython, SharedRegistryObject):
         # # Allow exception to propagate in case of non-iterable magnitude
         it_mag = iter(self.magnitude)
         return iter((self.__class__(mag, self._units) for mag in it_mag))
+
+    def _getitem(self, key):
+        try:
+            value = self._magnitude[key]
+            return self.__class__(value, self._units)
+        except TypeError:
+            raise TypeError("Neither Quantity object nor its magnitude ({})"
+                            "supports indexing".format(self._magnitude))
+
     @property
     def debug_used(self):
         return self.__used
@@ -1459,14 +1472,6 @@ class _Quantity(PrettyIPython, SharedRegistryObject):
         except AttributeError as ex:
             raise AttributeError("Neither Quantity object nor its magnitude ({}) "
                                  "has attribute '{}'".format(self._magnitude, item))
-
-    def __getitem__(self, key):
-        try:
-            value = self._magnitude[key]
-            return self.__class__(value, self._units)
-        except TypeError:
-            raise TypeError("Neither Quantity object nor its magnitude ({})"
-                            "supports indexing".format(self._magnitude))
 
     def __setitem__(self, key, value):
         try:

@@ -668,6 +668,11 @@ class TestIssuesNP(QuantityTestCase):
         self.assertEqual(velocity.check('[length] / [time]'), True)
         self.assertEqual(velocity.check('1 / [time] * [length]'), True)
 
+    def test_issue751(self):
+        ureg = UnitRegistry()
+        assert np.iterable([1, 2, 3] * ureg.m)
+        assert not np.iterable(1 * ureg.m)
+
     def test_issue783(self):
         ureg = UnitRegistry()
         assert not ureg('g') == []
