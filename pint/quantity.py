@@ -200,7 +200,7 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
 @implements(np.power)
 def _power(*args, **kwargs):
     pass
-for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted' ,'rollaxis', 'broadcast_to', 'moveaxis', 'fix']:
+for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
     
 
@@ -208,7 +208,7 @@ for func_str in ['unwrap']:
     implement_func(func_str, 'rad', 'rad', 'infer_from_input')
     
 
-for func_str in ['size', 'isreal', 'iscomplex']:
+for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like', 'argsort', 'argmin', 'argmax']:
     implement_func(func_str, None, None, None)
     
 for func_str in ['cross', 'trapz']:

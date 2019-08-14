@@ -112,6 +112,20 @@ try:
 
 
 
+    def _test_array_function_protocol():
+        # Test if the __array_function__ protocol is enabled
+        try:
+            class FakeArray:
+                def __array_function__(self, *args, **kwargs):
+                    return
+
+            np.concatenate([FakeArray()])
+            return True
+        except ValueError:
+            return False
+
+    HAS_NUMPY_ARRAY_FUNCTION = _test_array_function_protocol()
+
 except ImportError:
 
     np = None
@@ -122,6 +136,7 @@ except ImportError:
     HAS_NUMPY = False
     NUMPY_VER = '0'
     NUMERIC_TYPES = (Number, Decimal)
+    HAS_NUMPY_ARRAY_FUNCTION = False
 
     def _to_magnitude(value, force_ndarray=False):
         if isinstance(value, (dict, bool)) or value is None:
