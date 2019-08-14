@@ -110,7 +110,6 @@ def convert_to_consistent_units(pre_calc_units=None, *args, **kwargs):
     """Takes the args for a numpy function and converts any Quantity or Sequence of Quantities 
     into the units of the first Quantiy/Sequence of quantities. Other args are left untouched.
     """
-    print(args,kwargs)
     def convert_arg(arg):
         if pre_calc_units is not None:
             if isinstance(arg,BaseQuantity):
@@ -126,7 +125,6 @@ def convert_to_consistent_units(pre_calc_units=None, *args, **kwargs):
     
     new_args=tuple(convert_arg(arg) for arg in args)
     new_kwargs = {key:convert_arg(arg) for key,arg in kwargs.items()}
-    print( new_args, new_kwargs)
     return new_args, new_kwargs
     
 def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
@@ -153,12 +151,10 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
     
     """
     func = getattr(np,func_str)
-    print(func_str)
     
     @implements(func)
     def _(*args, **kwargs):
         # TODO make work for kwargs
-        print("_",func_str)
         args_and_kwargs = list(args)+list(kwargs.values())
         
         (pre_calc_units, post_calc_units, out_units)=(pre_calc_units_, post_calc_units_, out_units_)
@@ -193,7 +189,6 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
             for x in args_and_kwargs[1:]:
                 product /= x
             post_calc_units = product.units
-        print(post_calc_units)
         Q_ = first_input_units._REGISTRY.Quantity
         post_calc_Q_= Q_(res, post_calc_units)
         
@@ -204,7 +199,6 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
         return post_calc_Q_.to(out_units)
 @implements(np.power)
 def _power(*args, **kwargs):
-    print(args)
     pass
 for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted' ,'rollaxis', 'broadcast_to', 'moveaxis', 'fix']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
@@ -252,7 +246,6 @@ class BaseQuantity(PrettyIPython, SharedRegistryObject):
     :type units: UnitsContainer, str or Quantity.
     """
     def __array_function__(self, func, types, args, kwargs):
-        print("__array_function__", func)
         if func not in HANDLED_FUNCTIONS:
             return NotImplemented
         if not all(issubclass(t, BaseQuantity) for t in types):
