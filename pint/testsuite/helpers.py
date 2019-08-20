@@ -17,6 +17,12 @@ def requires_array_function_protocol():
     return unittest.skipUnless(HAS_NUMPY_ARRAY_FUNCTION, 'Requires __array_function__ protocol to be enabled')
 
 
+def requires_not_array_function_protocol():
+    if not HAS_NUMPY:
+        return unittest.skip('Requires NumPy')
+    return unittest.skipIf(HAS_NUMPY_ARRAY_FUNCTION, 'Requires __array_function__ protocol to be unavailable or disabled')
+
+
 def requires_numpy18():
     if not HAS_NUMPY:
         return unittest.skip('Requires NumPy')

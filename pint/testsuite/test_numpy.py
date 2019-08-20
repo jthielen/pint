@@ -346,6 +346,10 @@ class TestNumpyUnclassified(TestNumpyMethods):
     def test_max_numpy_func(self):
         self.assertEqual(np.max(self.q), 4 * self.ureg.m)
 
+    @helpers.requires_not_array_function_protocol()
+    def test_max_numpy_func_old_behavior(self):
+        self.assertEqual(np.max(self.q), 4)
+
     @helpers.requires_array_function_protocol()
     def test_max_with_axis_arg(self):
         self.assertQuantityEqual(np.max(self.q, axis=1), [2, 4] * self.ureg.m)

@@ -70,12 +70,12 @@ except ImportError:
 # TODO: remove this warning after v0.10
 class BehaviorChangeWarning(UserWarning):
     pass
-_msg = ('The way pint handles numpy operations has changed. '
-'Unimplemented numpy operations will now fail instead '
-'of making assumptions about units. Some functions, '
-'eg concat, will now return Quanties with units, where '
-'they returned ndarrays previously. See '
-'https://github.com/hgrecco/pint/pull/764 . '
+_msg = ('The way pint handles numpy operations has changed with '
+'the implementation of NEP 18. Unimplemented numpy operations '
+'will now fail instead of making assumptions about units. Some '
+'functions, eg concat, will now return Quanties with units, '
+'where they returned ndarrays previously. See '
+'https://github.com/hgrecco/pint/pull/764. '
 'To hide this warning use the following code to import pint:'
 """
 
@@ -83,6 +83,9 @@ import warnings
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
     import pint
+
+To disable the new behavior, see
+https://www.numpy.org/neps/nep-0018-array-function-protocol.html#implementation
 ---    
 """)
 
@@ -107,10 +110,6 @@ try:
         if force_ndarray:
             return np.asarray(value)
         return value
-    
-    warnings.warn(_msg, BehaviorChangeWarning)
-
-
 
     def _test_array_function_protocol():
         # Test if the __array_function__ protocol is enabled
@@ -125,6 +124,9 @@ try:
             return False
 
     HAS_NUMPY_ARRAY_FUNCTION = _test_array_function_protocol()
+
+    if HAS_NUMPY_ARRAY_FUNCTION:
+        warnings.warn(_msg, BehaviorChangeWarning)
 
 except ImportError:
 
