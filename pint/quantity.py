@@ -67,7 +67,7 @@ def ireduce_dimensions(f):
 def check_implemented(f):
     def wrapped(self, *args, **kwargs):
         other=args[0]
-        if other.__class__.__name__ in ["PintArray", "Series"]:
+        if other.__class__.__name__ in ["PintArray", "Series", "DataArray"]:
             return NotImplemented
         # pandas often gets to arrays of quantities [ Q_(1,"m"), Q_(2,"m")]
         # and expects Quantity * array[Quantity] should return NotImplemented
