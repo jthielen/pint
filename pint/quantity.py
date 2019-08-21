@@ -172,6 +172,8 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
             return res
         elif post_calc_units == "as_pre_calc":
             post_calc_units = pre_calc_units
+        elif post_calc_units == "sum":
+            post_calc_units = (1*first_input_units + 1*first_input_units).units
         elif post_calc_units == "prod":
             product = 1
             for x in args_and_kwargs:
@@ -189,6 +191,8 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
             for x in args_and_kwargs[1:]:
                 product /= x
             post_calc_units = product.units
+        elif post_calc_units == "variance":
+            post_calc_units = ((1*first_input_units + 1*first_input_units)**2).units
         Q_ = first_input_units._REGISTRY.Quantity
         post_calc_Q_= Q_(res, post_calc_units)
         
@@ -197,29 +201,38 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
         elif out_units == "infer_from_input":
             out_units = first_input_units
         return post_calc_Q_.to(out_units)
+
 @implements(np.power)
 def _power(*args, **kwargs):
     pass
-for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin']:
+
+for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
-    
 
 for func_str in ['unwrap']:
     implement_func(func_str, 'rad', 'rad', 'infer_from_input')
-    
 
-for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like', 'argsort', 'argmin', 'argmax']:
+for func_str in ['cumprod', 'cumproduct', 'nancumprod']:
+    implement_func(func_str, 'dimensionless', 'dimensionless', 'infer_from_input')
+
+for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like', 'argsort', 'argmin', 'argmax', 'alen', 'ndim', 'nanargmax', 'nanargmin', 'count_nonzero', 'nonzero', 'result_type']:
     implement_func(func_str, None, None, None)
+
+for func_str in ['average', 'mean', 'std', 'nanmean', 'nanstd', 'sum', 'nansum', 'cumsum', 'nancumsum']:
+    implement_func(func_str, None, 'sum', None)
     
-for func_str in ['cross', 'trapz']:
+for func_str in ['cross', 'trapz', 'dot']:
     implement_func(func_str, None, 'prod', None)
-    
+
 for func_str in ['diff', 'ediff1d',]:
     implement_func(func_str, None, 'delta', None)
-    
+
 for func_str in ['gradient', ]:
     implement_func(func_str, None, 'delta,div', None)
-    
+
+for func_str in ['var', 'nanvar']:
+    implement_func(func_str, None, 'variance', None)
+
 
 @contextlib.contextmanager
 def printoptions(*args, **kwargs):
