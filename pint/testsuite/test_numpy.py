@@ -31,7 +31,7 @@ class TestNumpyMethods(QuantityTestCase):
         return [[1,2],[3,np.nan]] * self.ureg.m
     @property
     def q_temperature(self):
-        return self.Q_([[1,2],[3,4]] , self.ureg.degC)
+        return self.Q_([[1,2],[3,4]], self.ureg.degC)
         
 
 class TestNumpyArrayCreation(TestNumpyMethods):
@@ -44,6 +44,12 @@ class TestNumpyArrayCreation(TestNumpyMethods):
     @helpers.requires_array_function_protocol()
     def test_zeros_like(self):
         np.testing.assert_equal(np.zeros_like(self.q), np.array([[0, 0], [0, 0]]))
+
+    @helpers.requires_array_function_protocol()
+    def test_full_like(self):
+        self.assertQuantityEqual(np.full_like(self.q, self.Q_(0, self.ureg.degC)),
+                                 self.Q_([[0, 0], [0, 0]], self.ureg.degC))
+        np.testing.assert_equal(np.full_like(self.q, 2), np.array([[2, 2], [2, 2]]))
 
 class TestNumpyArrayManipulation(TestNumpyMethods):
     #TODO
@@ -679,6 +685,14 @@ class TestNumpyUnclassified(TestNumpyMethods):
     def test_nan_to_num_numpy_func(self):
         self.assertQuantityEqual(np.nan_to_num(self.q_nan, nan=-999 * self.ureg.mm),
                                  [[1, 2], [3, -0.999]] * self.ureg.m)
+
+    @helpers.requires_array_function_protocol()
+    def test_meshgrid_numpy_func(self):
+        x = [1, 2] * self.ureg.m
+        y = [0, 50, 100] * self.ureg.mm
+        xx, yy = np.meshgrid(x, y)
+        self.assertQuantityEqual(xx, [[1, 2], [1, 2], [1, 2]] * self.ureg.m)
+        self.assertQuantityEqual(yy, [[0, 0], [50, 50], [100, 100]] * self.ureg.mm)
 
 
 @unittest.skip

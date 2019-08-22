@@ -206,6 +206,25 @@ def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
 def _power(*args, **kwargs):
     pass
 
+@implements(np.meshgrid)
+def _meshgrid(*xi, **kwargs):
+    # Simply need to map input units to onto list of outputs
+    input_units = (x.units for x in xi)
+    res = np.meshgrid(*(x.m for x in xi), **kwargs)
+    return [out * unit for out, unit in zip(res, input_units)]
+
+@implements(np.full_like)
+def _full_like(a, fill_value, dtype=None, order='K', subok=True, shape=None):
+    # Make full_like by multiplying with array from ones_like in a
+    # non-multiplicative-unit-safe way
+    if isinstance(fill_value, BaseQuantity):
+        return fill_value._REGISTRY.Quantity(
+            np.ones_like(a, dtype=dtype, order=order, subok=subok, shape=shape) * fill_value.m,
+            fill_value.units)
+    else:
+        return (np.ones_like(a, dtype=dtype, order=order, subok=subok, shape=shape)
+                * fill_value)
+
 for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
 
