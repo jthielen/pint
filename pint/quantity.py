@@ -225,8 +225,23 @@ def _full_like(a, fill_value, dtype=None, order='K', subok=True, shape=None):
         return (np.ones_like(a, dtype=dtype, order=order, subok=subok, shape=shape)
                 * fill_value)
 
+@implements(np.interp)
+def _interp(x, xp, fp, left=None, right=None, period=None):
+    # Need to handle x and y units separately
+    x_unit = _get_first_input_units([x, xp, period])
+    y_unit = _get_first_input_units([fp, left, right])
+    x_args, _ = convert_to_consistent_units(x_unit, x, xp, period)
+    y_args, _ = convert_to_consistent_units(y_unit, fp, left, right)
+    x, xp, period = x_args
+    fp, right, left = y_args
+    Q_ = y_unit._REGISTRY.Quantity
+    return Q_(np.interp(x, xp, fp, left=left, right=right, period=period), y_unit)
+
 for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
+
+for func_str in ['isclose']:
+    implement_func(func_str, 'consistent_infer', None, None)
 
 for func_str in ['unwrap']:
     implement_func(func_str, 'rad', 'rad', 'infer_from_input')
@@ -234,7 +249,7 @@ for func_str in ['unwrap']:
 for func_str in ['cumprod', 'cumproduct', 'nancumprod']:
     implement_func(func_str, 'dimensionless', 'dimensionless', 'infer_from_input')
 
-for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like', 'argsort', 'argmin', 'argmax', 'alen', 'ndim', 'nanargmax', 'nanargmin', 'count_nonzero', 'nonzero', 'result_type']:
+for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like', 'empty_like', 'argsort', 'argmin', 'argmax', 'alen', 'ndim', 'nanargmax', 'nanargmin', 'count_nonzero', 'nonzero', 'result_type']:
     implement_func(func_str, None, None, None)
 
 for func_str in ['average', 'mean', 'std', 'nanmean', 'nanstd', 'sum', 'nansum', 'cumsum', 'nancumsum']:
@@ -1405,7 +1420,7 @@ class BaseQuantity(PrettyIPython, SharedRegistryObject):
 
     @check_implemented
     def compare(self, other, op):
-        if not isinstance(other, self.__class__):
+        if not isinstance(other, BaseQuantity):
             if self.dimensionless:
                 return op(self._convert_magnitude_not_inplace(UnitsContainer()), other)
             elif _eq(other, 0, True):

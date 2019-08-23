@@ -46,6 +46,12 @@ class TestNumpyArrayCreation(TestNumpyMethods):
         np.testing.assert_equal(np.zeros_like(self.q), np.array([[0, 0], [0, 0]]))
 
     @helpers.requires_array_function_protocol()
+    def test_empty_like(self):
+        ret = np.empty_like(self.q)
+        self.assertEqual(ret.shape, (2, 2))
+        self.assertTrue(isinstance(ret, np.ndarray))
+
+    @helpers.requires_array_function_protocol()
     def test_full_like(self):
         self.assertQuantityEqual(np.full_like(self.q, self.Q_(0, self.ureg.degC)),
                                  self.Q_([[0, 0], [0, 0]], self.ureg.degC))
@@ -693,6 +699,22 @@ class TestNumpyUnclassified(TestNumpyMethods):
         xx, yy = np.meshgrid(x, y)
         self.assertQuantityEqual(xx, [[1, 2], [1, 2], [1, 2]] * self.ureg.m)
         self.assertQuantityEqual(yy, [[0, 0], [50, 50], [100, 100]] * self.ureg.mm)
+
+    @helpers.requires_array_function_protocol()
+    def test_isclose_numpy_func(self):
+        q2 = [[1000.05, 2000], [3000.00007, 4001]] * self.ureg.mm
+        np.testing.assert_equal(np.isclose(self.q, q2), np.array([[False, True], [True, False]]))
+
+    @helpers.requires_array_function_protocol()
+    def test_interp_numpy_func(self):
+        x = [1, 4] * self.ureg.m
+        xp = np.linspace(0, 3, 5) * self.ureg.m
+        fp = self.Q_([0, 5, 10, 15, 20], self.ureg.degC)
+        self.assertQuantityAlmostEqual(np.interp(x, xp, fp), self.Q_([6.66667, 20.], self.ureg.degC), rtol=1e-5)
+
+    def test_comparisons(self):
+        np.testing.assert_equal(self.q > 2 * self.ureg.m, np.array([[False, False], [True, True]]))
+        np.testing.assert_equal(self.q < 2 * self.ureg.m, np.array([[True, False], [False, False]]))
 
 
 @unittest.skip
