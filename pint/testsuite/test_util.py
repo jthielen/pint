@@ -7,7 +7,7 @@ import copy
 import operator as op
 from decimal import Decimal
 from pint.testsuite import BaseTestCase, QuantityTestCase
-from pint.util import (string_preprocessor, find_shortest_path, matrix_to_string,
+from pint.util import (StringPreprocessor, find_shortest_path, matrix_to_string,
                        transpose, tokenizer, find_connected_nodes, ParserHelper,
                        UnitsContainer, to_units_container)
 
@@ -202,11 +202,13 @@ class TestParseHelper(BaseTestCase):
 
 class TestStringProcessor(BaseTestCase):
 
+    string_preprocessor = StringPreprocessor()
+
     def _test(self, bef, aft):
         for pattern in ('{0}', '+{0}+'):
             b = pattern.format(bef)
             a = pattern.format(aft)
-            self.assertEqual(string_preprocessor(b), a)
+            self.assertEqual(self.string_preprocessor(b), a)
 
     def test_square_cube(self):
         self._test('bcd^3', 'bcd**3')

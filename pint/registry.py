@@ -48,7 +48,7 @@ from tokenize import NUMBER, NAME
 from . import registry_helpers
 from .context import Context, ContextChain
 from .util import (logger, pi_theorem, solve_dependencies, ParserHelper,
-                   string_preprocessor, find_connected_nodes,
+                   StringPreprocessor, find_connected_nodes,
                    find_shortest_path, UnitsContainer, _is_dim,
                    to_units_container, SourceIterator)
 
@@ -115,6 +115,8 @@ class BaseRegistry(meta.with_metaclass(_Meta)):
     def __init__(self, filename='', force_ndarray=False, on_redefinition='warn', auto_reduce_dimensions=False):
 
         self._register_parsers()
+
+        self.preprocessor = StringPreprocessor()
 
         from .unit import build_unit_class
         self.Unit = build_unit_class(self)
@@ -867,7 +869,7 @@ class BaseRegistry(meta.with_metaclass(_Meta)):
         if not input_string:
             return self.Quantity(1)
 
-        input_string = string_preprocessor(input_string)
+        input_string = self.preprocessor(input_string)
         gen = tokenizer(input_string)
 
         return build_eval_tree(gen).evaluate(lambda x: self._eval_token(x,

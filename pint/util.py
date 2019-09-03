@@ -29,6 +29,7 @@ from logging import NullHandler
 import logging
 from token import STRING, NAME, OP, NUMBER
 from tokenize import untokenize
+import warnings
 
 from .compat import string_types, tokenizer, lru_cache, maketrans, NUMERIC_TYPES
 from .formatting import format_unit,siunitx_format_unit
@@ -562,41 +563,85 @@ class ParserHelper(UnitsContainer):
         return new
 
 
-#: List of regex substitution pairs.
-_subs_re = [('\N{DEGREE SIGN}', " degree"),
-            (r"([\w\.\-\+\*\\\^])\s+", r"\1 "), # merge multiple spaces
-            (r"({}) squared", r"\1**2"),  # Handle square and cube
-            (r"({}) cubed", r"\1**3"),
-            (r"cubic ({})", r"\1**3"),
-            (r"square ({})", r"\1**2"),
-            (r"sq ({})", r"\1**2"),
-            (r"\b([0-9]+\.?[0-9]*)(?=[e|E][a-zA-Z]|[a-df-zA-DF-Z])", r"\1*"),  # Handle numberLetter for multiplication
-            (r"([\w\.\-])\s+(?=\w)", r"\1*"),  # Handle space for multiplication
-            ]
+class StringPreprocessor(object):
+    """Constructor for a extensible unit expression string preprocessor."""
 
-#: Compiles the regex and replace {} by a regex that matches an identifier.
-_subs_re = [(re.compile(a.format(r"[_a-zA-Z][_a-zA-Z0-9]*")), b) for a, b in _subs_re]
-_pretty_table = maketrans('⁰¹²³⁴⁵⁶⁷⁸⁹·⁻', '0123456789*-')
-_pretty_exp_re = re.compile(r"⁻?[⁰¹²³⁴⁵⁶⁷⁸⁹]+(?:\.[⁰¹²³⁴⁵⁶⁷⁸⁹]*)?")
+    # List of default replacement pairs
+    _default_replacements = [(",", ""),
+                             (" per ", "/"),
+                             ("^", "**")]
+
+    # List of default regex substitution pairs.
+    _default_subs_re = [('\N{DEGREE SIGN}', " degree"),
+                        (r"([\w\.\-\+\*\\\^])\s+", r"\1 "), # merge multiple spaces
+                        (r"({}) squared", r"\1**2"),  # Handle square and cube
+                        (r"({}) cubed", r"\1**3"),
+                        (r"cubic ({})", r"\1**3"),
+                        (r"square ({})", r"\1**2"),
+                        (r"sq ({})", r"\1**2"),
+                        (r"\b([0-9]+\.?[0-9]*)(?=[e|E][a-zA-Z]|[a-df-zA-DF-Z])", r"\1*"),  # Handle numberLetter for multiplication
+                        (r"([\w\.\-])\s+(?=\w)", r"\1*"),  # Handle space for multiplication
+                ]
+
+    # Define pretty format translation and regexes
+    _pretty_table = maketrans('⁰¹²³⁴⁵⁶⁷⁸⁹·⁻', '0123456789*-')
+    _pretty_exp_re = re.compile(r"⁻?[⁰¹²³⁴⁵⁶⁷⁸⁹]+(?:\.[⁰¹²³⁴⁵⁶⁷⁸⁹]*)?")
+
+    def __init__(self):
+        # Instantiate by compiling default regexes and setting replacements list from defaults
+        self.reset_regex_subs()
+        self.reset_replacements()
+
+    def __call__(self, input_string):
+        """Preprocess input string according to defined replacements and regexes.
+
+        Processing occurs in the following order:
+
+        1) String replacements as defined by tuples in the replacements
+        2) Regex substitutions (both default and those added by `add_regex_sub()`)
+        3) Pretty text format character handling
+        """
+        # String replacements
+        for current, replacement in self._replacements:
+            input_string = input_string.replace(current, replacement)
+
+        # Regex substitutions
+        for a, b in self._compiled_subs_re:
+            input_string = a.sub(b, input_string)
+
+        # Replace pretty format characters
+        for pretty_exp in self._pretty_exp_re.findall(input_string):
+            exp = '**' + pretty_exp.translate(self._pretty_table)
+            input_string = input_string.replace(pretty_exp, exp)
+        input_string = input_string.translate(self._pretty_table)
+
+        return input_string
+
+    def add_replacement(self, current, replacement):
+        """Add given replacement pair to the replacement list."""
+        self._replacements.append((current, replacement))
+
+    def reset_replacements(self):
+        """Reset replacement list to default."""
+        self._replacements = self._default_replacements
+
+    def add_regex_sub(self, regex_string, replacement):
+        """Compile the given regex_string and append it to the regex sub list."""
+        self._compiled_subs_re.append((re.compile(regex_string), replacement))
+
+    def reset_regex_subs(self):
+        """Reset regex substitution list to default."""
+        self._compiled_subs_re = [(re.compile(a.format(r"[_a-zA-Z][_a-zA-Z0-9]*")), b)
+                                  for a, b in self._default_subs_re]
 
 
+# DEBUG
+# Fall-back definition of string_processor function to catch old usage
+default_preprocessor = StringPreprocessor()
 def string_preprocessor(input_string):
-
-    input_string = input_string.replace(",", "")
-    input_string = input_string.replace(" per ", "/")
-
-    for a, b in _subs_re:
-        input_string = a.sub(b, input_string)
-
-    # Replace pretty format characters
-    for pretty_exp in _pretty_exp_re.findall(input_string):
-        exp = '**' + pretty_exp.translate(_pretty_table)
-        input_string = input_string.replace(pretty_exp, exp)
-    input_string = input_string.translate(_pretty_table)
-
-    # Handle caret exponentiation
-    input_string = input_string.replace("^", "**")
-    return input_string
+    warnings.warn('Usage of non-pluggable string_preprocessor directly will no longer be '
+                  'used', DeprecationWarning)
+    return default_preprocessor(input_string)
 
 
 def _is_dim(name):
