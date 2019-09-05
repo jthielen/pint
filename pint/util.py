@@ -141,12 +141,14 @@ def pi_theorem(quantities, registry=None):
 
     if registry is None:
         getdim = lambda x: x
+        preprocessor = _default_preprocessor
     else:
+        preprocessor = registry.preprocessor
         getdim = registry.get_dimensionality
 
     for name, value in quantities.items():
         if isinstance(value, string_types):
-            value = ParserHelper.from_string(value)
+            value = ParserHelper.from_string(value, preprocessor)
         if isinstance(value, dict):
             dims = getdim(UnitsContainer(value))
         elif not hasattr(value, 'dimensionality'):
@@ -420,8 +422,10 @@ class ParserHelper(UnitsContainer):
         return cls(1, [(input_word, 1)])
 
     @classmethod
-    def from_string(cls, input_string):
-        return cls._from_string(input_string)
+    def from_string(cls, input_string, preprocessor=None):
+        if preprocessor is None:
+            preprocessor = _default_preprocessor
+        return cls._from_string(input_string, preprocessor)
 
     @classmethod
     def eval_token(cls, token, use_decimal=False):
@@ -441,14 +445,14 @@ class ParserHelper(UnitsContainer):
 
     @classmethod
     @lru_cache()
-    def _from_string(cls, input_string):
+    def _from_string(cls, input_string, preprocessor):
         """Parse linear expression mathematical units and return a quantity object.
 
         """
         if not input_string:
             return cls()
 
-        input_string = string_preprocessor(input_string)
+        input_string = preprocessor(input_string)
         if '[' in input_string:
             input_string = input_string.replace('[', '__obra__').replace(']', '__cbra__')
             reps = True
@@ -637,11 +641,11 @@ class StringPreprocessor(object):
 
 # DEBUG
 # Fall-back definition of string_processor function to catch old usage
-default_preprocessor = StringPreprocessor()
+_default_preprocessor = StringPreprocessor()
 def string_preprocessor(input_string):
     warnings.warn('Usage of non-pluggable string_preprocessor directly will no longer be '
                   'used', DeprecationWarning)
-    return default_preprocessor(input_string)
+    return _default_preprocessor(input_string)
 
 
 def _is_dim(name):

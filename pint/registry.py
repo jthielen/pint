@@ -1062,7 +1062,8 @@ class ContextRegistry(BaseRegistry):
     def _parse_context(self, ifile):
         try:
             self.add_context(Context.from_lines(ifile.block_iter(),
-                                                self.get_dimensionality))
+                                                self.get_dimensionality,
+                                                preprocessor=self.preprocessor))
         except KeyError as e:
             raise DefinitionSyntaxError('unknown dimension {} in context'.format(str(e)))
 
