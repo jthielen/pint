@@ -237,10 +237,10 @@ def _interp(x, xp, fp, left=None, right=None, period=None):
     Q_ = y_unit._REGISTRY.Quantity
     return Q_(np.interp(x, xp, fp, left=left, right=right, period=period), y_unit)
 
-for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'searchsorted', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
+for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
 
-for func_str in ['isclose']:
+for func_str in ['isclose', 'searchsorted']:
     implement_func(func_str, 'consistent_infer', None, None)
 
 for func_str in ['unwrap']:
@@ -1540,10 +1540,10 @@ class BaseQuantity(PrettyIPython, SharedRegistryObject):
         self._magnitude.shape = value
 
     def searchsorted(self, v, side='left', sorter=None):
-        if isinstance(v, self.__class__):
+        if isinstance(v, BaseQuantity):
             v = v.to(self).magnitude
         elif self.dimensionless:
-            v = self.__class__(v, '').to(self)
+            v = Quantity(v, '').to(self)
         else:
             raise DimensionalityError('dimensionless', self._units)
         return self.magnitude.searchsorted(v, side)
