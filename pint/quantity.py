@@ -25,7 +25,7 @@ from .formatting import (remove_custom_flags, siunitx_format_unit, ndarray_to_la
 from .errors import (DimensionalityError, OffsetUnitCalculusError,
                      UndefinedUnitError, UnitStrippedWarning)
 from .definitions import UnitDefinition
-from .compat import string_types, ndarray, np, _to_magnitude, long_type
+from .compat import string_types, ndarray, np, _to_magnitude, long_type, is_upcast_type
 from .util import (PrettyIPython, logger, UnitsContainer, SharedRegistryObject,
                    to_units_container, infer_base_unit,
                    fix_str_conversions, iterable, sized)
@@ -67,7 +67,7 @@ def ireduce_dimensions(f):
 def check_implemented(f):
     def wrapped(self, *args, **kwargs):
         other=args[0]
-        if other.__class__.__name__ in ["PintArray", "Series", "DataArray"]:
+        if is_upcast_type(other):
             return NotImplemented
         # pandas often gets to arrays of quantities [ Q_(1,"m"), Q_(2,"m")]
         # and expects Quantity * array[Quantity] should return NotImplemented
@@ -80,7 +80,7 @@ def check_implemented(f):
 HANDLED_FUNCTIONS = {}
 
 def implements(numpy_function):
-    """Register an __array_function__ implementation for BaseQuantity objects."""
+    """Register an __array_function__ implementation for Quantity objects."""
     def decorator(func):
         HANDLED_FUNCTIONS[numpy_function] = func
         return func
@@ -108,7 +108,8 @@ def _get_first_input_units(args, kwargs={}):
     
 def convert_to_consistent_units(pre_calc_units=None, *args, **kwargs):
     """Takes the args for a numpy function and converts any Quantity or Sequence of Quantities 
-    into the units of the first Quantiy/Sequence of quantities. Other args are left untouched.
+    into the units of the first Quantiy/Sequence of quantities. Other args are left untouched
+    if pre_calc_units is None or dimensionless, otherwise a DimensionalityError is raised.
     """
     def convert_arg(arg):
         if pre_calc_units is not None:
@@ -116,6 +117,8 @@ def convert_to_consistent_units(pre_calc_units=None, *args, **kwargs):
                 return arg.m_as(pre_calc_units)
             elif _is_quantity_sequence(arg):
                 return [item.m_as(pre_calc_units) for item in arg]
+            elif not pre_calc_units.dimensionless:
+                raise DimensionalityError('dimensionless', pre_calc_units)
         else:
             if isinstance(arg, Quantity):
                 return arg.m
@@ -233,6 +236,12 @@ def _interp(x, xp, fp, left=None, right=None, period=None):
     Q_ = y_unit._REGISTRY.Quantity
     return Q_(np.interp(x, xp, fp, left=left, right=right, period=period), y_unit)
 
+@implements(np.where)
+def _where(condition, *args):
+    pre_calc_units = _get_first_input_units(args)
+    new_args, _ = convert_to_consistent_units(pre_calc_units, *args)
+    return pre_calc_units._REGISTRY.Quantity(np.where(condition, *new_args), pre_calc_units)
+
 for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
     implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
 
@@ -292,7 +301,7 @@ class Quantity(PrettyIPython, SharedRegistryObject):
     def __array_function__(self, func, types, args, kwargs):
         if func not in HANDLED_FUNCTIONS:
             return NotImplemented
-        if not all(issubclass(t, Quantity) for t in types):
+        if any(is_upcast_type(t) for t in types):
             return NotImplemented
         return HANDLED_FUNCTIONS[func](*args, **kwargs)
 

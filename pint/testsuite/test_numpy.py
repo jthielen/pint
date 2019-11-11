@@ -389,6 +389,11 @@ class TestNumpyUnclassified(TestNumpyMethods):
         self.assertQuantityEqual(self.q.compress([False, True], axis=1),
                                  [[2], [4]] * self.ureg.m)
 
+    @helpers.requires_array_function_protocol()
+    def test_compress(self):
+        self.assertQuantityEqual(np.compress([False, True], self.q, axis=1),
+                                 [[2], [4]] * self.ureg.m)
+
     def test_searchsorted(self):
         q = self.q.flatten()
         self.assertNDArrayEqual(q.searchsorted([1.5, 2.5] * self.ureg.m),
@@ -725,6 +730,12 @@ class TestNumpyUnclassified(TestNumpyMethods):
     def test_comparisons(self):
         self.assertNDArrayEqual(self.q > 2 * self.ureg.m, np.array([[False, False], [True, True]]))
         self.assertNDArrayEqual(self.q < 2 * self.ureg.m, np.array([[True, False], [False, False]]))
+
+    @helpers.requires_array_function_protocol()
+    def test_where(self):
+        self.assertQuantityEqual(np.where(self.q >= 2 * self.ureg.m, self.q, 0 * self.ureg.m),
+                                 [[0, 2], [3, 4]] * self.ureg.m)
+        self.assertRaises(DimensionalityError, np.where, self.q < 2 * self.ureg.m, self.q, 0)
 
 
 @unittest.skip

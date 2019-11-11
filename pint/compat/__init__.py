@@ -176,3 +176,10 @@ try:
     HAS_PYTEST = True
 except ImportError:
     HAS_PYTEST = False
+
+
+# Define location of pint.Quantity in NEP-13 type cast hierarchy by defining upcast and
+# downcast/wrappable types
+def is_upcast_type(other):
+    # Check if class name is in preset list
+    return other.__class__.__name__ in ("PintArray", "Series", "DataArray")
