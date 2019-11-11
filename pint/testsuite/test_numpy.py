@@ -118,14 +118,26 @@ class TestNumpyArrayManipulation(TestNumpyMethods):
     
     @helpers.requires_array_function_protocol()
     def test_atleast_1d(self):
+        actual = np.atleast_1d(0 * self.ureg.degC, self.q.flatten())
+        expected = (np.array([0]) * self.ureg.degC, self.q.flatten())
+        for ind_actual, ind_expected in zip(actual, expected):
+            self.assertQuantityEqual(ind_actual, ind_expected)
         self.assertQuantityEqual(np.atleast_1d(self.q), self.q)
-    
+
     @helpers.requires_array_function_protocol()
     def test_atleast_2d(self):
+        actual = np.atleast_2d(0 * self.ureg.degC, self.q.flatten())
+        expected = (np.array([[0]]) * self.ureg.degC, np.array([[1], [2], [3], [4]]) * self.ureg.m)
+        for ind_actual, ind_expected in zip(actual, expected):
+            self.assertQuantityEqual(ind_actual, ind_expected)
         self.assertQuantityEqual(np.atleast_2d(self.q), self.q)
-    
+
     @helpers.requires_array_function_protocol()
     def test_atleast_3d(self):
+        actual = np.atleast_3d(0 * self.ureg.degC, self.q.flatten())
+        expected = (np.array([[[0]]]) * self.ureg.degC, np.array([[[1]], [[2]], [[3]], [[4]]]) * self.ureg.m)
+        for ind_actual, ind_expected in zip(actual, expected):
+            self.assertQuantityEqual(ind_actual, ind_expected)
         self.assertQuantityEqual(np.atleast_3d(self.q), np.array([[[1],[2]],[[3],[4]]])* self.ureg.m)
     
     @helpers.requires_array_function_protocol()

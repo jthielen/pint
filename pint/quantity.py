@@ -19,6 +19,7 @@ import bisect
 import warnings
 import numbers
 import re
+import inspect
 
 from .formatting import (remove_custom_flags, siunitx_format_unit, ndarray_to_latex,
                          ndarray_to_latex_parts)
@@ -117,7 +118,7 @@ def convert_to_consistent_units(pre_calc_units=None, *args, **kwargs):
                 return arg.m_as(pre_calc_units)
             elif _is_quantity_sequence(arg):
                 return [item.m_as(pre_calc_units) for item in arg]
-            elif not pre_calc_units.dimensionless:
+            elif arg is not None and not pre_calc_units.dimensionless:
                 raise DimensionalityError('dimensionless', pre_calc_units)
         else:
             if isinstance(arg, Quantity):
@@ -129,81 +130,61 @@ def convert_to_consistent_units(pre_calc_units=None, *args, **kwargs):
     new_args=tuple(convert_arg(arg) for arg in args)
     new_kwargs = {key:convert_arg(arg) for key,arg in kwargs.items()}
     return new_args, new_kwargs
-    
-def implement_func(func_str, pre_calc_units_, post_calc_units_, out_units_):
+
+def unwrap_and_wrap_consistent_units(*args):
+    """Returns the given args as parsed by convert_to_consistent_units assuming units of first
+    arg with units, along with a wrapper to restore that unit to the output.
     """
-    :param func_str: The numpy function to implement
-    :type func_str: str
-    :param pre_calc_units: The units any quantity/ sequences of quantities should be converted to. 
-    consistent_infer converts all qs to the first units found in args/kwargs
-    inconsistent does not convert any qs, eg for product
-    rad (or any other unit) converts qs to radians/ other unit
-    None converts qs to magnitudes without conversion
-    :type pre_calc_units: NoneType, str
-    :param pre_calc_units: The units the result of the function should be initiated as. 
-    as_pre_calc uses the units it was converted to pre calc. Do not use with pre_calc_units="inconsistent"
-    rad (or any other unit) uses radians/ other unit
-    prod uses multiplies the input quantity units
-    None causes func to return without creating a quantity from the output, regardless of any out_units
-    :type out_units: NoneType, str
-    :param out_units: The units the result of the function should be returned to the user as.  The quantity created in the post_calc_units will be converted to the out_units
-    None or as_post_calc uses the units the quantity was initiated in, ie the post_calc_units, without any conversion.
-    rad (or any other unit) uses radians/ other unit
-    infer_from_input uses the first input units found, as received by the function before any conversions.
-    :type out_units: NoneType, str
-    
-    """
-    func = getattr(np,func_str)
-    
+    first_input_units = _get_first_input_units(args)
+    args, _ = convert_to_consistent_units(first_input_units, *args)
+    return args, lambda value: first_input_units._REGISTRY.Quantity(value, first_input_units)
+
+def implement_func(func_str, input_units=None, output_unit=None):
+    """TODO"""
+    func = getattr(np, func_str)
+
     @implements(func)
-    def _(*args, **kwargs):
-        # TODO make work for kwargs
-        args_and_kwargs = list(args)+list(kwargs.values())
-        
-        (pre_calc_units, post_calc_units, out_units)=(pre_calc_units_, post_calc_units_, out_units_)
-        first_input_units=_get_first_input_units(args, kwargs)
-        if pre_calc_units == "consistent_infer":
-            pre_calc_units = first_input_units
-            
-        if pre_calc_units == "inconsistent":
-            new_args, new_kwargs = args, kwargs
-        else:   
-            new_args, new_kwargs = convert_to_consistent_units(pre_calc_units, *args, **kwargs)
-        res = func(*new_args, **new_kwargs)
-        
-        if post_calc_units is None:
-            return res
-        elif post_calc_units == "as_pre_calc":
-            post_calc_units = pre_calc_units
-        elif post_calc_units == "sum":
-            post_calc_units = (1*first_input_units + 1*first_input_units).units
-        elif post_calc_units == "prod":
+    def implementation(*args, **kwargs):
+        args_and_kwargs = list(args) + list(kwargs.values())
+        first_input_units = _get_first_input_units(args, kwargs)
+        if input_units == "all_consistent":
+            # Match all input args/kwargs to same units
+            stripped_args, stripped_kwargs = convert_to_consistent_units(first_input_units,
+                                                                         *args, *kwargs)
+        else:
+            # Match all input args/kwargs to input_units, or if input_units is None, simply
+            # strip units 
+            stripped_args, stripped_kwargs = convert_to_consistent_units(input_units, *args,
+                                                                         *kwargs)
+
+        # Determine result through base numpy function on stripped arguments
+        result_magnitude = func(*stripped_args, **stripped_kwargs)
+
+        if output_unit is None:
+            # Short circuit and return magntidue alone
+            return result_magnitude
+        elif output_unit == "match_input":
+            result_unit = first_input_units
+        elif output_unit == "sum":
+            result_unit = (1 * first_input_units + 1 * first_input_units).units
+        elif output_unit == "prod":
             product = 1
             for x in args_and_kwargs:
                 product *= x
-            post_calc_units = product.units
-        elif post_calc_units == "div":
-            product = first_input_units*first_input_units
-            for x in args_and_kwargs:
-                product /= x
-            post_calc_units = product.units
-        elif post_calc_units == "delta":
-            post_calc_units = (1*first_input_units-1*first_input_units).units
-        elif post_calc_units == "delta,div":
-            product=(1*first_input_units-1*first_input_units).units
+            result_unit = product.units
+        elif output_unit == "delta":
+            result_unit = (1 * first_input_units - 1 * first_input_units).units
+        elif output_unit == "delta,div":
+            product=(1 * first_input_units - 1 * first_input_units).units
             for x in args_and_kwargs[1:]:
                 product /= x
-            post_calc_units = product.units
-        elif post_calc_units == "variance":
-            post_calc_units = ((1*first_input_units + 1*first_input_units)**2).units
-        Q_ = first_input_units._REGISTRY.Quantity
-        post_calc_Q_= Q_(res, post_calc_units)
-        
-        if out_units is None or out_units == "as_post_calc":
-            return post_calc_Q_
-        elif out_units == "infer_from_input":
-            out_units = first_input_units
-        return post_calc_Q_.to(out_units)
+            result_unit = product.units
+        elif output_unit == "variance":
+            result_unit = ((1 * first_input_units + 1 * first_input_units)**2).units
+        else:
+            raise ValueError('Output unit method {} not understood'.format(output_unit))
+
+        return first_input_units._REGISTRY.Quantity(result_magnitude, result_unit)
 
 @implements(np.meshgrid)
 def _meshgrid(*xi, **kwargs):
@@ -227,50 +208,131 @@ def _full_like(a, fill_value, dtype=None, order='K', subok=True, shape=None):
 @implements(np.interp)
 def _interp(x, xp, fp, left=None, right=None, period=None):
     # Need to handle x and y units separately
-    x_unit = _get_first_input_units([x, xp, period])
-    y_unit = _get_first_input_units([fp, left, right])
-    x_args, _ = convert_to_consistent_units(x_unit, x, xp, period)
-    y_args, _ = convert_to_consistent_units(y_unit, fp, left, right)
-    x, xp, period = x_args
-    fp, right, left = y_args
-    Q_ = y_unit._REGISTRY.Quantity
-    return Q_(np.interp(x, xp, fp, left=left, right=right, period=period), y_unit)
+    (x, xp, period), _ = unwrap_and_wrap_consistent_units(x, xp, period)
+    (fp, right, left), output_wrap = convert_to_consistent_units(fp, left, right)
+    return output_wrap(np.interp(x, xp, fp, left=left, right=right, period=period))
 
 @implements(np.where)
 def _where(condition, *args):
-    pre_calc_units = _get_first_input_units(args)
-    new_args, _ = convert_to_consistent_units(pre_calc_units, *args)
-    return pre_calc_units._REGISTRY.Quantity(np.where(condition, *new_args), pre_calc_units)
+    args, output_wrap = unwrap_and_wrap_consistent_units(*args)
+    return output_wrap(np.where(condition, *args))
 
-for func_str in ['linspace', 'concatenate', 'block', 'stack', 'hstack', 'vstack',  'dstack', 'atleast_1d', 'column_stack', 'atleast_2d', 'atleast_3d', 'expand_dims','squeeze', 'swapaxes', 'compress', 'rollaxis', 'broadcast_to', 'moveaxis', 'fix', 'amax', 'amin', 'nanmax', 'nanmin', 'around', 'diagonal', 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose', 'flip', 'copy', 'trim_zeros', 'append', 'clip', 'nan_to_num']:
-    implement_func(func_str, 'consistent_infer', 'as_pre_calc', 'as_post_calc')
+@implements(np.linspace)
+def _linspace(start, stop, *args, **kwargs):
+    (start, stop), output_wrap = unwrap_and_wrap_consistent_units(start, stop)
+    return output_wrap(np.linspace(start, stop, *args, **kwargs))
 
-for func_str in ['isclose', 'searchsorted']:
-    implement_func(func_str, 'consistent_infer', None, None)
+@implements(np.concatenate)
+def _concatenate(sequence, *args, **kwargs):
+    sequence, output_wrap = unwrap_and_wrap_consistent_units(*sequence)
+    return output_wrap(np.concatenate(sequence, *args, **kwargs))
 
-for func_str in ['unwrap']:
-    implement_func(func_str, 'rad', 'rad', 'infer_from_input')
+@implements(np.stack)
+def _stack(arrays, *args, **kwargs):
+    arrays, output_wrap = unwrap_and_wrap_consistent_units(*arrays)
+    return output_wrap(np.stack(arrays, *args, **kwargs))
+
+@implements(np.compress)
+def _compress(condition, a, *args, **kwargs):
+    (a,), output_wrap = unwrap_and_wrap_consistent_units(a)
+    return output_wrap(np.compress(condition, a, *args, **kwargs))
+
+@implements(np.append)
+def _append(arr, values, axis=None):
+    (arr, values), output_wrap = unwrap_and_wrap_consistent_units(arr, values)
+    return output_wrap(np.append(arr, values, axis))
+
+@implements(np.clip)
+def _clip(a, a_min, a_max, *args, **kwargs):
+    (a, a_min, a_max), output_wrap = unwrap_and_wrap_consistent_units(a, a_min, a_max)
+    return output_wrap(np.clip(a, a_min, a_max, *args, **kwargs))
+
+@implements(np.nan_to_num)
+def _nan_to_num(x, copy=True, nan=None, posinf=None, neginf=None):
+    if nan is None:
+        nan = 0.0
+    elif isinstance(nan, Quantity):
+        nan = nan.m_as(x.units)
+    posinf = posinf if not isinstance(posinf, Quantity) else posinf.m_as(x.units)
+    neginf = neginf if not isinstance(neginf, Quantity) else neginf.m_as(x.units)
+    result_magnitude = np.nan_to_num(x.magnitude, copy=False, nan=nan, posinf=posinf,
+                                     neginf=neginf)
+    if not copy:
+        x._magnitude = result_magnitude
+
+    return x._REGISTRY.Quantity(result_magnitude, x.units)
+
+@implements(np.isclose)
+def _isclose(a, b, rtol=None, atol=None, equal_nan=False):
+    (a, b, rtol, atol), _ = unwrap_and_wrap_consistent_units(a, b, rtol, atol)
+    rtol = 1e-05 if rtol is None else rtol
+    atol = 1e-08 if atol is None else atol
+    return np.isclose(a, b, rtol, atol, equal_nan)
+
+@implements(np.searchsorted)
+def _searchsorted(a, v, *args, **kwargs):
+    (a, v), _ = unwrap_and_wrap_consistent_units(a, v)
+    return np.searchsorted(a, v, *args, **kwargs)
+
+# Handle single unit argument operations (axis ops, aggregations, etc.)
+for func_str in ['expand_dims', 'squeeze', 'rollaxis', 'moveaxis', 'fix', 'around', 'diagonal',
+                 'mean', 'ptp', 'ravel', 'round_', 'sort', 'median', 'nanmedian', 'transpose',
+                 'flip', 'copy', 'trim_zeros', 'average', 'nanmean']:
+    func = getattr(np, func_str)
+    @implements(func)
+    def implementation(a, *args, **kwargs):
+        (a,), output_wrap = unwrap_and_wrap_consistent_units(a)
+        return output_wrap(func(a, *args, **kwargs))
+
+# Handle atleast_nd functions
+for func_str in ['atleast_1d', 'atleast_2d', 'atleast_3d']:
+    func = getattr(np, func_str)
+    @implements(func)
+    def implementation(*arrays):
+        stripped_arrays, _ = convert_to_consistent_units(None, *arrays)
+        arrays_magnitude = func(*stripped_arrays)
+        if len(arrays) > 1:
+            return [array_magnitude if not isinstance(original, Quantity)
+                    else original._REGISTRY.Quantity(array_magnitude, original.units)
+                    for array_magnitude, original in zip(arrays_magnitude, arrays)]
+        else:
+            output_unit = arrays[0].units
+            return output_unit._REGISTRY.Quantity(arrays_magnitude, output_unit)
+
+# Handle single-argument consistent unit functions
+for func_str in ['block', 'hstack', 'vstack', 'dstack', 'column_stack']:
+    implement_func(func_str, input_units='all_consistent', output_unit='match_input')
+
+implement_func('unwrap', input_units='rad', output_unit='match_input')
 
 for func_str in ['cumprod', 'cumproduct', 'nancumprod']:
-    implement_func(func_str, 'dimensionless', 'dimensionless', 'infer_from_input')
+    implement_func(func_str, input_units='dimensionless', output_unit='match_input')
 
-for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like', 'empty_like', 'argsort', 'argmin', 'argmax', 'alen', 'ndim', 'nanargmax', 'nanargmin', 'count_nonzero', 'nonzero', 'result_type']:
-    implement_func(func_str, None, None, None)
+for func_str in ['size', 'isreal', 'iscomplex', 'shape', 'ones_like', 'zeros_like',
+                 'empty_like', 'argsort', 'argmin', 'argmax', 'alen', 'ndim', 'nanargmax',
+                 'nanargmin', 'count_nonzero', 'nonzero', 'result_type']:
+    implement_func(func_str, input_units=None, output_unit=None)
 
-for func_str in ['average', 'mean', 'std', 'nanmean', 'nanstd', 'sum', 'nansum', 'cumsum', 'nancumsum']:
-    implement_func(func_str, None, 'sum', None)
+# TODO: Verify all these below with non-united other arguments \/ !!
+
+for func_str in ['std', 'nanstd', 'sum', 'nansum', 'cumsum', 'nancumsum']:
+    implement_func(func_str, input_units=None, output_unit='sum')
     
 for func_str in ['cross', 'trapz', 'dot']:
-    implement_func(func_str, None, 'prod', None)
+    implement_func(func_str, input_units=None, output_unit='prod')
 
 for func_str in ['diff', 'ediff1d',]:
-    implement_func(func_str, None, 'delta', None)
+    implement_func(func_str, input_units=None, output_unit='delta')
 
 for func_str in ['gradient', ]:
-    implement_func(func_str, None, 'delta,div', None)
+    implement_func(func_str, input_units=None, output_unit='delta,div')
 
 for func_str in ['var', 'nanvar']:
-    implement_func(func_str, None, 'variance', None)
+    implement_func(func_str, input_units=None, output_unit='variance')
+
+# TODO: broadcast_to (how to handle subok?)
+# TODO: 'amax', 'amin', 'nanmax', 'nanmin' (version dependent signatures)
+# TODO: nan_to_num (expected behavior with input values, sensible defaults?)
 
 
 @contextlib.contextmanager
